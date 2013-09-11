@@ -38,3 +38,6 @@ nosetests.xml
 # http://www.jetbrains.com/pycharm/webhelp/project.html
 .idea
 .iml
+
+# virtualenv
+ENV
