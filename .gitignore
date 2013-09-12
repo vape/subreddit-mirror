@@ -41,3 +41,9 @@ nosetests.xml
 
 # virtualenv
 ENV
+
+# Project specific
+# the env.yaml file contains the s3 and imgur api credentials, so it should not go into source control
+# aww.txt is the cache file for the /r/aww html content so i don't have to go to reddit every time i run the script for testing
+env.yaml
+aww.txt
