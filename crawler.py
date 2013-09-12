@@ -1,17 +1,13 @@
 #!/usr/bin/env python
 
 from urllib2 import urlopen, HTTPError, URLError
-import pyimgur
 import re
 import os
-from boto.s3.connection import S3Connection
-from pyimgur import Imgur, Gallery_album
-from boto.s3.key import Key
-import yaml
 import time
 
-import shutil
-
+from pyimgur import Imgur
+from boto.s3.key import Key
+import yaml
 from bs4 import BeautifulSoup
 
 
