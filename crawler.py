@@ -13,6 +13,7 @@ from boto.s3.connection import S3Connection
 import yaml
 from bs4 import BeautifulSoup
 
+from config import initialize_config
 
 def get_album_images(url):
     album_id = os.path.splitext(os.path.basename(url))[0]
@@ -21,30 +22,6 @@ def get_album_images(url):
     album_images = [image.link for image in album.images]
 
     return album_images
-
-
-def initialize_config():
-    if [k for k in ['S3KEY', 'S3SECRET', 'S3BUCKETNAME', 'IMGURCLIENTID', 'IMGURSECRET', 'DBSERVER', 'DBNAME', 'DBUSER', 'DBPASS', 'DBPORT'] if k in os.environ.keys()]:
-        print('all keys exist')
-        return
-
-    if not os.path.exists('env.yaml'):
-        raise Exception('env.yaml required for config initialization')
-
-    with open('env.yaml', 'r') as config_file:
-        config = yaml.load(config_file)
-        os.environ['S3KEY'] = config['s3config']['key']
-        os.environ['S3SECRET'] = config['s3config']['secret']
-        os.environ['S3BUCKETNAME'] = config['s3config']['bucketname']
-
-        os.environ['IMGURCLIENTID'] = config['imgurconfig']['clientid']
-        os.environ['IMGURSECRET'] = config['imgurconfig']['secret']
-
-        os.environ['DBSERVER'] = config['dbconfig']['dbserver']
-        os.environ['DBNAME'] = config['dbconfig']['dbname']
-        os.environ['DBUSER'] = config['dbconfig']['username']
-        os.environ['DBPASS'] = config['dbconfig']['password']
-        os.environ['DBPORT'] = str(config['dbconfig']['port'])
 
 
 def upload_file(bucket, url):
@@ -176,7 +153,7 @@ def update_image_database(images):
     insert_statement = "insert into images (image_id, created_date, display_order) values " + ", ".join(params)
 
     db_start_timestamp = time.time()
-    conn = pypyodbc.connect(driver='{SQL Server}', server='srmirrordb.cdos5ymus8o5.us-east-1.rds.amazonaws.com', database='srmirrordb', uid='srmirrordbuser', pwd='hedehodo2013')
+    conn = pypyodbc.connect(driver='{SQL Server}', server=os.environ['DBSERVER'], database=os.environ['DBNAME'], uid=os.environ['DBUSER'], pwd=os.environ['DBPASS'])
     cur = conn.cursor()
     cur.execute("truncate table images").commit()
     cur.execute(insert_statement).commit()
