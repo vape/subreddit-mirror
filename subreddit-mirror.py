@@ -41,12 +41,15 @@ def get_db():
 def index():
     conn = connect_db()
     cur = conn.cursor()
-    images = cur.execute("select image_id, display_order from images order by display_order").fetchall()
+    rows = cur.execute("select image_id, display_order from images order by display_order").fetchall()
     update_date = cur.execute("select max(created_date) from images").fetchone()[0]
+    cur.close()
+    images = [r['image_id']  for r in rows]
     print update_date
     template_params = {
         'images': images,
-        'update_date': update_date
+        'update_date': update_date,
+        'image_root': "https://s3.amazonaws.com/{0}/".format(os.environ["S3BUCKETNAME"])
         }
     return render_template('index.html', **template_params)
 

@@ -75,18 +75,26 @@ def initialize_files_dir():
 
 
 def get_subreddit_html():
-    if not os.path.exists('aww.txt') or os.stat('aww.txt').st_size == 0:
-        print 'aww.txt does not exist or is empty. going to reddit'
-        page = urlopen('http://www.reddit.com/r/aww?limit=100', timeout = 20)
-        html = page.read()
-        with open('aww.txt', 'w') as file:
-            try:
-                file.write(html)
-            except UnicodeDecodeError, e:
-                print "UnicodeDecodeError: ", e.reason
-    else:
-        print "opening cached file"
-        html = open('aww.txt', 'r').read()
+    while True:
+        try:
+            if not os.path.exists('aww.txt') or os.stat('aww.txt').st_size == 0:
+                print 'aww.txt does not exist or is empty. going to reddit'
+                page = urlopen('http://www.reddit.com/r/aww?limit=100', timeout=20)
+                html = page.read()
+                with open('aww.txt', 'w') as file:
+                    try:
+                        file.write(html)
+                        break
+                    except UnicodeDecodeError, e:
+                        print "UnicodeDecodeError: ", e.reason
+            else:
+                print "opening cached file"
+                html = open('aww.txt', 'r').read()
+                break
+        except HTTPError:
+            print "http error. trying again."
+            time.sleep(3)
+            continue
 
     return html
 
@@ -135,7 +143,10 @@ def upload_all_images(images):
     bucket.set_acl('public-read')
 
     for i in images:
-        upload_file(bucket, i)
+        try:
+            upload_file(bucket, i)
+        except:
+            continue
 
     upload_end_timestamp = time.time()
 
@@ -182,7 +193,4 @@ print "uploaded {0} images to s3 in {1} seconds".format(len(images), image_uploa
 
 db_update_elapsed = update_image_database(images)
 print "updated database in {0} seconds".format(db_update_elapsed)
-
-
-
 
