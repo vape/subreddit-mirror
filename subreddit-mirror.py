@@ -1,6 +1,6 @@
 from flask import Flask, render_template, g
 from config import initialize_config
-import pypyodbc
+import pyodbc
 import os
 import re
 
@@ -18,7 +18,7 @@ def connect_db():
 
     :return: Connection
     """
-    conn = pypyodbc.connect(driver='{SQL Server}', server=os.environ['DBSERVER'], database=os.environ['DBNAME'], uid=os.environ['DBUSER'], pwd=os.environ['DBPASS'])
+    conn = pyodbc.connect(driver='{SQL Server}', server=os.environ['DBSERVER'], database=os.environ['DBNAME'], uid=os.environ['DBUSER'], pwd=os.environ['DBPASS'])
     return conn
 
 @app.teardown_appcontext
@@ -46,7 +46,7 @@ def index():
     update_date = cur.execute("select max(created_date) from images").fetchone()[0]
     cur.close()
     image_extension_regex = re.compile("\.(jpe?g|gif|png)$", re.IGNORECASE)
-    images = [{'thumb': re.sub(image_extension_regex, r't.\1', r['image_id']), 'img': r['image_id']} for r in rows]
+    images = [{'thumb': re.sub(image_extension_regex, r't.\1', r[0]), 'img': r[0]} for r in rows]
     template_params = {
         'images': images,
         'update_date': update_date,

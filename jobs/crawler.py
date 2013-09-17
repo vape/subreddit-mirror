@@ -5,7 +5,7 @@ import time
 import re
 import os
 import sys
-import pypyodbc
+import pyodbc
 from pyimgur import Imgur
 from boto.s3.key import Key
 from boto.s3.connection import S3Connection
@@ -190,7 +190,7 @@ def update_image_database(images):
     insert_statement = "insert into images (image_id, created_date, display_order) values " + ", ".join(params)
 
     db_start_timestamp = time.time()
-    conn = pypyodbc.connect(driver='{SQL Server}', server=os.environ['DBSERVER'], database=os.environ['DBNAME'], uid=os.environ['DBUSER'], pwd=os.environ['DBPASS'])
+    conn = pyodbc.connect(driver='{SQL Server}', server=os.environ['DBSERVER'], database=os.environ['DBNAME'], uid=os.environ['DBUSER'], pwd=os.environ['DBPASS'])
     cur = conn.cursor()
     cur.execute("truncate table images").commit()
     cur.execute(insert_statement).commit()

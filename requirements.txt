@@ -7,6 +7,6 @@ beautifulsoup4==4.3.1
 boto==2.13.3
 itsdangerous==0.23
 pyimgur==0.5.2
-pypyodbc==1.1.5
+pyodbc==3.0.7
 requests==1.2.3
 wsgiref==0.1.2
