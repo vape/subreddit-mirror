@@ -1,23 +1,20 @@
 #!/usr/bin/env python
 import shutil
-
 from urllib2 import urlopen, HTTPError, URLError
 import time
-
 import re
 import os
+import sys
 import pypyodbc
 from pyimgur import Imgur
 from boto.s3.key import Key
 from boto.s3.connection import S3Connection
-import yaml
 from bs4 import BeautifulSoup
-
 from config import initialize_config
 
 
 def initialize_files_dir():
-    files_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "files")
+    files_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "files")
 
     if os.path.exists(files_dir):
         shutil.rmtree(files_dir)
@@ -29,25 +26,29 @@ def initialize_files_dir():
 
 def get_subreddit_html():
     page_html = ""
+    cache_file_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'aww.txt')
     while True:
         try:
-            if not os.path.exists('aww.txt') or os.stat('aww.txt').st_size == 0:
-                print 'aww.txt does not exist or is empty. going to reddit'
-                page = urlopen('http://www.reddit.com/r/aww?limit=100', timeout=20)
-                page_html = page.read()
-                with open('aww.txt', 'w') as input_file:
+            if os.environ.has_key('DEBUG') and os.path.exists(cache_file_path) and os.stat(cache_file_path).st_size > 0:
+                print "using cached aww.txt"
+                return open(cache_file_path).read()
+
+            print "getting html from reddit"
+            page = urlopen('http://www.reddit.com/r/aww?limit=100', timeout=20)
+            page_html = page.read()
+
+            if os.environ.has_key('DEBUG'):
+                print "caching aww.txt"
+                with open(cache_file_path, 'w') as input_file:
                     try:
                         input_file.write(page_html)
                         break
                     except UnicodeDecodeError, e:
                         print "UnicodeDecodeError: ", e.reason
-            else:
-                print "opening cached file"
-                page_html = open('aww.txt', 'r').read()
-                break
-        except HTTPError:
-            print "http error. trying again."
-            time.sleep(3)
+            break
+        except HTTPError, e:
+            print "http error. trying again. error: ", e
+            time.sleep(5)
             continue
 
     return page_html
@@ -103,7 +104,7 @@ def get_all_imgur_images(links):
     return images, (gallery_collect_end - gallery_collect_start)
 
 
-def download_file(url):
+def download_file(url, dest_dir):
     try:
         print('downloading ' + url)
         try_count = 0
@@ -123,7 +124,7 @@ def download_file(url):
             raise Exception("Failed to download {0} in {1} attempts.", url, try_count)
 
         time.sleep(0.5)
-        dest_image = os.path.join(files_dir, os.path.basename(url))
+        dest_image = os.path.join(dest_dir, os.path.basename(url))
         with open(dest_image, 'wb') as image_file:
             image_file.write(image_source.read())
 
@@ -139,29 +140,29 @@ def download_file(url):
         print 'awesome error ', url
 
 
-def download_all_images(images):
+def download_all_images(images, dest_dir):
     download_start_timestamp = time.time()
     for img in images:
-        download_file(img) # download image (asd123.jpg)
-        download_file(re.sub(image_extension_regex, r't.\1', img)) # download thumbnail (asd123t.jpg)
+        download_file(img, dest_dir) # download image (asd123.jpg)
+        download_file(re.sub(image_extension_regex, r't.\1', img), dest_dir) # download thumbnail (asd123t.jpg)
     download_end_timestamp = time.time()
     return download_end_timestamp - download_start_timestamp
 
 
-def upload_file(bucket, url):
+def upload_file(bucket, url, source_dir):
     print "uploading main image ", os.path.basename(url)
     main_img_key = Key(bucket)
     main_img_key.key = os.path.basename(url)
-    main_img_key.set_contents_from_filename(os.path.join(files_dir, os.path.basename(url)), reduced_redundancy=True)
+    main_img_key.set_contents_from_filename(os.path.join(source_dir, os.path.basename(url)), reduced_redundancy=True)
     main_img_key.make_public()
 
     thumb_img_key = Key(bucket)
     thumb_img_key.key = os.path.basename(re.sub(image_extension_regex, r't.\1', url))
-    thumb_img_key.set_contents_from_filename(os.path.join(files_dir, os.path.basename(re.sub(image_extension_regex, r't.\1', url))), reduced_redundancy=True)
+    thumb_img_key.set_contents_from_filename(os.path.join(source_dir, os.path.basename(re.sub(image_extension_regex, r't.\1', url))), reduced_redundancy=True)
     thumb_img_key.make_public()
 
 
-def upload_all_images(images):
+def upload_all_images(images, source_dir):
     upload_start_timestamp = time.time()
     s3conn = S3Connection(os.environ['S3KEY'], os.environ['S3SECRET'])
     bucket = s3conn.create_bucket(os.environ['S3BUCKETNAME'])
@@ -169,7 +170,7 @@ def upload_all_images(images):
 
     for i in images:
         try:
-            upload_file(bucket, i)
+            upload_file(bucket, i, source_dir)
         except:
             continue
 
@@ -202,21 +203,29 @@ imgur_image_regex = re.compile("^(https?:\/\/(?:i\.|m\.|edge\.|www\.)*imgur\.com
 image_extension_regex = re.compile("\.(jpe?g|gif|png)$", re.IGNORECASE)
 gallery_url_regex = re.compile("/a/", re.IGNORECASE)
 
-initialize_config()
-files_dir = initialize_files_dir()
-html = get_subreddit_html()
-links = get_subreddit_image_links(html)
 
-images, gallery_images_elapsed = get_all_imgur_images(links)
-print "got {0} links and {1} images in {2} seconds".format(len(links), len(images), gallery_images_elapsed)
+def main(argv=None):
+    if argv is None:
+        argv = sys.argv
 
-image_download_elapsed = download_all_images(images)
-print "downloaded {0} images in {1} seconds".format(len(images), image_download_elapsed)
+    initialize_config(argv=argv)
+    files_dir = initialize_files_dir()
+    html = get_subreddit_html()
+    links = get_subreddit_image_links(html)
 
-image_upload_elapsed = upload_all_images(images)
-print "uploaded {0} images to s3 in {1} seconds".format(len(images), image_upload_elapsed)
+    images, gallery_images_elapsed = get_all_imgur_images(links)
+    print "got {0} links and {1} images in {2} seconds".format(len(links), len(images), gallery_images_elapsed)
 
-db_update_elapsed = update_image_database(images)
-print "updated database in {0} seconds".format(db_update_elapsed)
+    image_download_elapsed = download_all_images(images, files_dir)
+    print "downloaded {0} images in {1} seconds".format(len(images), image_download_elapsed)
 
-shutil.rmtree(files_dir)
+    image_upload_elapsed = upload_all_images(images, files_dir)
+    print "uploaded {0} images to s3 in {1} seconds".format(len(images), image_upload_elapsed)
+
+    db_update_elapsed = update_image_database(images)
+    print "updated database in {0} seconds".format(db_update_elapsed)
+
+    shutil.rmtree(files_dir)
+
+if __name__ == "__main__":
+    main()
