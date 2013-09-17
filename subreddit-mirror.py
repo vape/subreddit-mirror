@@ -1,6 +1,6 @@
 from flask import Flask, render_template, g
 from config import initialize_config
-import pyodbc
+import psycopg2
 import os
 import re
 
@@ -18,7 +18,7 @@ def connect_db():
 
     :return: Connection
     """
-    conn = pyodbc.connect(driver='{SQL Server}', server=os.environ['DBSERVER'], database=os.environ['DBNAME'], uid=os.environ['DBUSER'], pwd=os.environ['DBPASS'])
+    conn = psycopg2.connect(host=os.environ['DBSERVER'], database=os.environ['DBNAME'], user=os.environ['DBUSER'], password=os.environ['DBPASS'], port=os.environ['DBPORT'])
     return conn
 
 @app.teardown_appcontext
@@ -42,8 +42,10 @@ def get_db():
 def index():
     conn = connect_db()
     cur = conn.cursor()
-    rows = cur.execute("select image_id, display_order from images order by display_order").fetchall()
-    update_date = cur.execute("select max(created_date) from images").fetchone()[0]
+    cur.execute("select image_id, display_order from images order by display_order")
+    rows = cur.fetchall()
+    cur.execute("select max(created_date) from images")
+    update_date = cur.fetchone()[0]
     cur.close()
     image_extension_regex = re.compile("\.(jpe?g|gif|png)$", re.IGNORECASE)
     images = [{'thumb': re.sub(image_extension_regex, r't.\1', r[0]), 'img': r[0]} for r in rows]
