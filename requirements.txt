@@ -5,6 +5,7 @@ PyYAML==3.10
 Werkzeug==0.9.4
 beautifulsoup4==4.3.1
 boto==2.13.3
+gunicorn==18.0
 itsdangerous==0.23
 psycopg2==2.5.1
 pyimgur==0.5.2
