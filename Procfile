@@ -1,1 +1,1 @@
-web: python subreddit-mirror.py
+web: gunicorn subreddit-mirror:app
