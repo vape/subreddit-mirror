@@ -2,6 +2,7 @@ from flask import Flask, render_template, g
 from config import initialize_config
 import pypyodbc
 import os
+import re
 
 app = Flask(__name__)
 
@@ -44,8 +45,8 @@ def index():
     rows = cur.execute("select image_id, display_order from images order by display_order").fetchall()
     update_date = cur.execute("select max(created_date) from images").fetchone()[0]
     cur.close()
-    images = [r['image_id']  for r in rows]
-    print update_date
+    image_extension_regex = re.compile("\.(jpe?g|gif|png)$", re.IGNORECASE)
+    images = [{'thumb': re.sub(image_extension_regex, r't.\1', r['image_id']), 'img': r['image_id']} for r in rows]
     template_params = {
         'images': images,
         'update_date': update_date,

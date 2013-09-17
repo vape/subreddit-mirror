@@ -45,5 +45,7 @@ ENV
 # Project specific
 # the env.yaml file contains the s3 and imgur api credentials, so it should not go into source control
 # aww.txt is the cache file for the /r/aww html content so i don't have to go to reddit every time i run the script for testing
+# files is the destination directory for the downloads from imgur.
 env.yaml
 aww.txt
+files

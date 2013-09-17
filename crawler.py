@@ -40,18 +40,26 @@ def upload_file(bucket, url):
 def download_file(url):
     try:
         print('downloading ' + url)
-        thumb_url = re.sub(image_extension_regex, r't.\1', url)
+        try_count = 0
+        valid_response = False
+        while try_count <= 5:
+            try_count += 1
+            image_source = urlopen(url)
+            if not image_source.info().gettype().lower().startswith("image"):
+                print "got {0} response from imgur. will retry.".format(image_source.info().gettype())
+                time.sleep(1)
+                continue
+            else:
+                valid_response = True
+                break
 
-        image_source = urlopen(url)
-        thumb_source = urlopen(thumb_url)
+        if not valid_response and try_count == 5:
+            raise Exception("Failed to download {0} in {1} attempts.", url, try_count)
 
+        time.sleep(0.5)
         dest_image = os.path.join(files_dir, os.path.basename(url))
         with open(dest_image, 'wb') as image_file:
             image_file.write(image_source.read())
-
-        dest_thumb = os.path.join(files_dir, os.path.basename(thumb_url))
-        with open(dest_thumb, 'wb') as thumb_file:
-            thumb_file.write(thumb_source.read())
 
         print('finished ' + os.path.basename(url))
 
@@ -59,6 +67,8 @@ def download_file(url):
         print "HTTP Error:", e.code, url
     except URLError, e:
         print "URL Error:", e.reason, url
+    except Exception, e:
+        print 'awesome error ', e
     except:
         print 'awesome error ', url
 
@@ -75,31 +85,43 @@ def initialize_files_dir():
 
 
 def get_subreddit_html():
+    page_html = ""
     while True:
         try:
             if not os.path.exists('aww.txt') or os.stat('aww.txt').st_size == 0:
                 print 'aww.txt does not exist or is empty. going to reddit'
                 page = urlopen('http://www.reddit.com/r/aww?limit=100', timeout=20)
-                html = page.read()
-                with open('aww.txt', 'w') as file:
+                page_html = page.read()
+                with open('aww.txt', 'w') as input_file:
                     try:
-                        file.write(html)
+                        input_file.write(page_html)
                         break
                     except UnicodeDecodeError, e:
                         print "UnicodeDecodeError: ", e.reason
             else:
                 print "opening cached file"
-                html = open('aww.txt', 'r').read()
+                page_html = open('aww.txt', 'r').read()
                 break
         except HTTPError:
             print "http error. trying again."
             time.sleep(3)
             continue
 
-    return html
+    return page_html
 
 
 def get_subreddit_image_links(html):
+    """
+    as described here [http://api.imgur.com/models/image], imgur file names are 5-7 characters in length and have one of these characters [sbtmlh] at the end to specify image size.
+    since we manually append size 't' for thumbnails, we need to obtain the imgur url 'without' the size specifier.
+    imgur_image_regex has two groups that we use, one for the image name up to (but not including) the size specifier, and another for the file extension.
+    e.g. for http://i.imgur.com/dFuYFdJh.jpg, group 1 is: "http://i.imgur.com/dFuYFdJ" (no h at the end) and group 4 is ".jpg"
+    for http://i.imgur.com/dFuYFdJ.jpg (no size specifier), group 1 is again "http://i.imgur.com/dFuYFdJ" and group 4 is ".jpg"
+    for gallery urls like http://imgur.com/a/IPhHW group 4 will be empty and we will only use group 1
+
+    :param html: subreddit html
+    :return: list of imgur single image and gallery links
+    """
     soup = BeautifulSoup(html)
     entries = soup.select("div.entry a.title")
     links = []
@@ -107,7 +129,8 @@ def get_subreddit_image_links(html):
         mtc = imgur_image_regex.match(entry['href'])
         if not mtc:
             continue
-        links.append(mtc.group(1))
+
+        links.append(mtc.group(1) + (mtc.group(4) or "")) # group(4) (file extension) is empty for gallery urls and single image page urls http://imgur.com/dFuYFdJ
 
     return links
 
@@ -116,7 +139,7 @@ def get_all_imgur_images(links):
     print("collecting gallery images")
     images = []
     gallery_collect_start = time.time()
-    for i, link in enumerate(links):
+    for link in links:
         if gallery_url_regex.search(link):
             [images.append(img) for img in get_album_images(link)]
         elif not image_extension_regex.search(link):
@@ -131,7 +154,8 @@ def get_all_imgur_images(links):
 def download_all_images(images):
     download_start_timestamp = time.time()
     for img in images:
-        download_file(img)
+        download_file(img) # download image (asd123.jpg)
+        download_file(re.sub(image_extension_regex, r't.\1', img)) # download thumbnail (asd123t.jpg)
     download_end_timestamp = time.time()
     return download_end_timestamp - download_start_timestamp
 
@@ -158,7 +182,7 @@ def update_image_database(images):
         total = 0
         for l in list:
             total += 1
-            yield (os.path.splitext(os.path.basename(l))[0], 'GETDATE()', total)
+            yield (os.path.basename(l), 'GETDATE()', total)
 
     params = ["('{0}', {1}, {2})".format(*i) for i in list(get_insert_param(images))]
     insert_statement = "insert into images (image_id, created_date, display_order) values " + ", ".join(params)
@@ -173,7 +197,7 @@ def update_image_database(images):
     return db_end_timestamp - db_start_timestamp
 
 
-imgur_image_regex = re.compile("^(https?:\/\/(?:i\.|m\.|edge\.|www\.)*imgur\.com\/(?!gallery)(?!removalrequest)(?!random)(?!memegen)(a/)?([A-Za-z0-9]{5}|[A-Za-z0-9]{7})[sbtmlh]?(\.(?:jpe?g|gif|png))?)(\?.*)?$", re.IGNORECASE)
+imgur_image_regex = re.compile("^(https?:\/\/(?:i\.|m\.|edge\.|www\.)*imgur\.com\/(?!gallery)(?!removalrequest)(?!random)(?!memegen)(a/)?([A-Za-z0-9]{5}|[A-Za-z0-9]{7}))[sbtmlh]?(\.(?:jpe?g|gif|png))?(\?.*)?$", re.IGNORECASE)
 image_extension_regex = re.compile("\.(jpe?g|gif|png)$", re.IGNORECASE)
 gallery_url_regex = re.compile("/a/", re.IGNORECASE)
 

@@ -28,23 +28,19 @@
 </head>
 <body>
 
-
 <div class="navbar navbar-inverse navbar-fixed-top">
     <div class="container text-center">
         <div class="navbar-header">
-            <a class="navbar-brand" href="/">/r/aww mirror | son güncelleme: {{ update_date.strftime("%Y-%m-%d %H:%M") }} | {{ images|length }} görsel</a>
+            <a class="navbar-brand" href="/">/r/aww mirror | son güncelleme: {{ update_date.strftime("%Y-%m-%d %H:%M") }} | {{ images|length }} adet mihi!</a>
         </div>
     </div>
 </div>
 
 <div class="container">
     {% for image in images %}
-        <div class="col-lg-3"><a class="thumbnail" target="_blank" href="{{ image_root }}{{ image }}.jpg"><img src="{{ image_root }}{{ image }}t.jpg"></a></div>
+        <div class="col-lg-3"><a class="thumbnail" target="_blank" href="{{ image_root }}{{ image.img }}"><img src="{{ image_root }}{{ image.thumb }}"></a></div>
     {% endfor %}
 </div>
-
-
-
 
 <script src="//ajax.googleapis.com/ajax/libs/jquery/2.0.3/jquery.min.js"></script>
 <script src="/static/bootstrap.min.js"></script>
