@@ -1,0 +1,15 @@
+s3config:
+  key: --
+  secret: --
+  bucketname: --
+
+imgurconfig:
+  clientid: --
+  secret: --
+
+dbconfig:
+  dbserver: --
+  dbname: --
+  username: --
+  password: --
+  port: --
