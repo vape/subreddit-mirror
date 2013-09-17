@@ -15,63 +15,6 @@ from bs4 import BeautifulSoup
 
 from config import initialize_config
 
-def get_album_images(url):
-    album_id = os.path.splitext(os.path.basename(url))[0]
-    im = Imgur(os.environ['IMGURCLIENTID'])
-    album = im.get_album(album_id)
-    album_images = [image.link for image in album.images]
-
-    return album_images
-
-
-def upload_file(bucket, url):
-    print "uploading main image ", os.path.basename(url)
-    main_img_key = Key(bucket)
-    main_img_key.key = os.path.basename(url)
-    main_img_key.set_contents_from_filename(os.path.join(files_dir, os.path.basename(url)), reduced_redundancy=True)
-    main_img_key.make_public()
-
-    thumb_img_key = Key(bucket)
-    thumb_img_key.key = os.path.basename(re.sub(image_extension_regex, r't.\1', url))
-    thumb_img_key.set_contents_from_filename(os.path.join(files_dir, os.path.basename(re.sub(image_extension_regex, r't.\1', url))), reduced_redundancy=True)
-    thumb_img_key.make_public()
-
-
-def download_file(url):
-    try:
-        print('downloading ' + url)
-        try_count = 0
-        valid_response = False
-        while try_count <= 5:
-            try_count += 1
-            image_source = urlopen(url)
-            if not image_source.info().gettype().lower().startswith("image"):
-                print "got {0} response from imgur. will retry.".format(image_source.info().gettype())
-                time.sleep(1)
-                continue
-            else:
-                valid_response = True
-                break
-
-        if not valid_response and try_count == 5:
-            raise Exception("Failed to download {0} in {1} attempts.", url, try_count)
-
-        time.sleep(0.5)
-        dest_image = os.path.join(files_dir, os.path.basename(url))
-        with open(dest_image, 'wb') as image_file:
-            image_file.write(image_source.read())
-
-        print('finished ' + os.path.basename(url))
-
-    except HTTPError, e:
-        print "HTTP Error:", e.code, url
-    except URLError, e:
-        print "URL Error:", e.reason, url
-    except Exception, e:
-        print 'awesome error ', e
-    except:
-        print 'awesome error ', url
-
 
 def initialize_files_dir():
     files_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "files")
@@ -135,6 +78,15 @@ def get_subreddit_image_links(html):
     return links
 
 
+def get_album_images(url):
+    album_id = os.path.splitext(os.path.basename(url))[0]
+    im = Imgur(os.environ['IMGURCLIENTID'])
+    album = im.get_album(album_id)
+    album_images = [image.link for image in album.images]
+
+    return album_images
+
+
 def get_all_imgur_images(links):
     print("collecting gallery images")
     images = []
@@ -151,6 +103,42 @@ def get_all_imgur_images(links):
     return images, (gallery_collect_end - gallery_collect_start)
 
 
+def download_file(url):
+    try:
+        print('downloading ' + url)
+        try_count = 0
+        valid_response = False
+        while try_count <= 5:
+            try_count += 1
+            image_source = urlopen(url)
+            if not image_source.info().gettype().lower().startswith("image"):
+                print "got {0} response from imgur. will retry.".format(image_source.info().gettype())
+                time.sleep(1)
+                continue
+            else:
+                valid_response = True
+                break
+
+        if not valid_response and try_count == 5:
+            raise Exception("Failed to download {0} in {1} attempts.", url, try_count)
+
+        time.sleep(0.5)
+        dest_image = os.path.join(files_dir, os.path.basename(url))
+        with open(dest_image, 'wb') as image_file:
+            image_file.write(image_source.read())
+
+        print('finished ' + os.path.basename(url))
+
+    except HTTPError, e:
+        print "HTTP Error:", e.code, url
+    except URLError, e:
+        print "URL Error:", e.reason, url
+    except Exception, e:
+        print 'awesome error ', e
+    except:
+        print 'awesome error ', url
+
+
 def download_all_images(images):
     download_start_timestamp = time.time()
     for img in images:
@@ -158,6 +146,19 @@ def download_all_images(images):
         download_file(re.sub(image_extension_regex, r't.\1', img)) # download thumbnail (asd123t.jpg)
     download_end_timestamp = time.time()
     return download_end_timestamp - download_start_timestamp
+
+
+def upload_file(bucket, url):
+    print "uploading main image ", os.path.basename(url)
+    main_img_key = Key(bucket)
+    main_img_key.key = os.path.basename(url)
+    main_img_key.set_contents_from_filename(os.path.join(files_dir, os.path.basename(url)), reduced_redundancy=True)
+    main_img_key.make_public()
+
+    thumb_img_key = Key(bucket)
+    thumb_img_key.key = os.path.basename(re.sub(image_extension_regex, r't.\1', url))
+    thumb_img_key.set_contents_from_filename(os.path.join(files_dir, os.path.basename(re.sub(image_extension_regex, r't.\1', url))), reduced_redundancy=True)
+    thumb_img_key.make_public()
 
 
 def upload_all_images(images):
@@ -218,3 +219,4 @@ print "uploaded {0} images to s3 in {1} seconds".format(len(images), image_uploa
 db_update_elapsed = update_image_database(images)
 print "updated database in {0} seconds".format(db_update_elapsed)
 
+shutil.rmtree(files_dir)
